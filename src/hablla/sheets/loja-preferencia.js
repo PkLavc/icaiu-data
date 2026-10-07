@@ -825,12 +825,20 @@ async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
   }
   const totalItems = Number(first.data?.totalItems || 0);
   if (outside) {
-    throw new Error(`Filtro de data da lista ${listId} retornou ${outside} cards fora de ${day}`);
+    throw new Error(`Filtro de data de cards retornou ${outside} registros fora de ${day}`);
   }
   if (totalItems && occurrences < totalItems) {
-    throw new Error(`Lista ${listId}: API informou ${totalItems} ocorrencias, mas retornou ${occurrences}`);
+    throw new Error(`API de cards informou ${totalItems} ocorrencias, mas retornou ${occurrences}`);
   }
   return { byId, occurrences, outside, totalItems, totalPages };
+}
+
+function assertNoSensitiveCardIdsInPublicMessages() {
+  const messages = [
+    "Filtro de data de cards retornou registros fora da janela",
+    "API de cards informou ocorrencias divergentes",
+  ];
+  return messages.every((message) => !/[a-f0-9]{24}/i.test(message));
 }
 
 function sameIdSet(left, right) {
@@ -1147,6 +1155,7 @@ module.exports._internals = {
   attendantToRow,
   cardToRow,
   cardFilterRange,
+  assertNoSensitiveCardIdsInPublicMessages,
   customFieldValue,
   daySequence,
   latestDay,
