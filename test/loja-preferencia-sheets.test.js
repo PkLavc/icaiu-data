@@ -54,6 +54,10 @@ test('reconciliacao fixa usa o corte atual em vez da ultima data da planilha', (
   );
 });
 
+test('mensagens publicas de cards nao carregam IDs internos', () => {
+  assert.equal(_internals.assertNoSensitiveCardIdsInPublicMessages(), true);
+});
+
 test('cards usam end_date exclusivo no dia seguinte', () => {
   assert.deepEqual(
     _internals.cardFilterRange('2026-09-15'),
