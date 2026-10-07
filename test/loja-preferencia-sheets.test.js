@@ -8,6 +8,9 @@ test('usa os nomes e offsets reais das tres abas', () => {
   assert.equal(_internals.SHEETS.atendentes.title, 'Atendentes_Base');
   assert.equal(_internals.SHEETS.cards.title, 'Cartões_Base');
   assert.equal(_internals.SHEETS.cards.headerRows, 2);
+  assert.deepEqual(_internals.SHEETS.atendimentos.writeSegments, [[0, 25], [26, 28]]);
+  assert.deepEqual(_internals.SHEETS.atendentes.writeSegments, [[0, 18]]);
+  assert.deepEqual(_internals.SHEETS.cards.writeSegments, [[0, 50]]);
 });
 
 test('detecta datas e retrocede um dia para reconciliacao', () => {

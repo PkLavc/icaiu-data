@@ -17,9 +17,9 @@ const SERVICE_POPULATE = [
 ].join(",");
 
 const SHEETS = Object.freeze({
-  atendimentos: { title: "Atendimentos_Base", dateColumn: "A", width: 28, headerRows: 1 },
-  atendentes: { title: "Atendentes_Base", dateColumn: "A", width: 19, headerRows: 1 },
-  cards: { title: "Cartões_Base", dateColumn: "C", width: 51, headerRows: 2 },
+  atendimentos: { title: "Atendimentos_Base", dateColumn: "A", width: 28, headerRows: 1, writeSegments: [[0, 25], [26, 28]] },
+  atendentes: { title: "Atendentes_Base", dateColumn: "A", width: 19, headerRows: 1, writeSegments: [[0, 18]] },
+  cards: { title: "Cartões_Base", dateColumn: "C", width: 51, headerRows: 2, writeSegments: [[0, 50]] },
 });
 
 function required(value, name) {
@@ -502,6 +502,7 @@ async function replaceDayRows({
   newRowDateIndex = 0,
   newRows,
   width,
+  writeSegments = [[0, width]],
 }) {
   const targetIndexes = [];
   for (let index = 0; index < bodyState.length; index += 1) {
@@ -599,26 +600,37 @@ async function replaceDayRows({
         },
       });
     }
-    promotionRequests.push({
-      copyPaste: {
-        source: {
-          sheetId: stagingSheetId,
-          startRowIndex: 0,
-          endRowIndex: newRows.length,
-          startColumnIndex: 0,
-          endColumnIndex: width,
+    for (const [startColumnIndex, endColumnIndex] of writeSegments) {
+      if (
+        !Number.isInteger(startColumnIndex) ||
+        !Number.isInteger(endColumnIndex) ||
+        startColumnIndex < 0 ||
+        endColumnIndex <= startColumnIndex ||
+        endColumnIndex > width
+      ) {
+        throw new Error(`${sheetTitle}: segmento de escrita invalido`);
+      }
+      promotionRequests.push({
+        copyPaste: {
+          source: {
+            sheetId: stagingSheetId,
+            startRowIndex: 0,
+            endRowIndex: newRows.length,
+            startColumnIndex,
+            endColumnIndex,
+          },
+          destination: {
+            sheetId,
+            startRowIndex,
+            endRowIndex: startRowIndex + newRows.length,
+            startColumnIndex,
+            endColumnIndex,
+          },
+          pasteType: "PASTE_NORMAL",
+          pasteOrientation: "NORMAL",
         },
-        destination: {
-          sheetId,
-          startRowIndex,
-          endRowIndex: startRowIndex + newRows.length,
-          startColumnIndex: 0,
-          endColumnIndex: width,
-        },
-        pasteType: "PASTE_NORMAL",
-        pasteOrientation: "NORMAL",
-      },
-    });
+      });
+    }
 
     await sheets.batchUpdate(promotionRequests);
     promoted = true;
@@ -878,6 +890,7 @@ async function syncAtendimentos(context) {
       newRowDateIndex: 0,
       newRows: rows,
       width: SHEETS.atendimentos.width,
+      writeSegments: SHEETS.atendimentos.writeSegments,
     });
     bodyState = result.bodyState;
     gridRowCount = result.gridRowCount;
@@ -909,6 +922,7 @@ async function syncAtendentes(context) {
       newRowDateIndex: 0,
       newRows: rows,
       width: SHEETS.atendentes.width,
+      writeSegments: SHEETS.atendentes.writeSegments,
     });
     bodyState = result.bodyState;
     gridRowCount = result.gridRowCount;
@@ -946,6 +960,7 @@ async function syncCards(context) {
       newRowDateIndex: 2,
       newRows: rows,
       width: SHEETS.cards.width,
+      writeSegments: SHEETS.cards.writeSegments,
     });
     bodyState = result.bodyState;
     gridRowCount = result.gridRowCount;
