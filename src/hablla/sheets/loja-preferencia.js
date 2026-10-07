@@ -783,11 +783,16 @@ function cardCreatedInDay(card, day) {
   return parseDay(card?.created_at) === day;
 }
 
+function cardFilterRange(day) {
+  return { start_date: day, end_date: addDays(day, 1) };
+}
+
 async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
+  const range = cardFilterRange(day);
   const params = (page) => ({
     list: listId,
-    start_date: day,
-    end_date: day,
+    start_date: range.start_date,
+    end_date: range.end_date,
     page,
     limit: 50,
     order: "created_at",
@@ -1141,6 +1146,7 @@ module.exports._internals = {
   assertReplacementIsSafe,
   attendantToRow,
   cardToRow,
+  cardFilterRange,
   customFieldValue,
   daySequence,
   latestDay,

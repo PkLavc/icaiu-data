@@ -54,6 +54,13 @@ test('reconciliacao fixa usa o corte atual em vez da ultima data da planilha', (
   );
 });
 
+test('cards usam end_date exclusivo no dia seguinte', () => {
+  assert.deepEqual(
+    _internals.cardFilterRange('2026-09-15'),
+    { start_date: '2026-09-15', end_date: '2026-09-16' },
+  );
+});
+
 test('validacao de 30 dias cobre exatamente os 30 dias completos ate o corte', () => {
   assert.equal(_internals.validationStartDay('2026-10-06', 30), '2026-09-07');
 
