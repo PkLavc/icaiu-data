@@ -203,7 +203,7 @@ function secondsToHms(value, { zeroAsDash = false } = {}) {
 function durationCell(value, { zeroAsDash = false } = {}) {
   const text = secondsToHms(value, { zeroAsDash });
   if (text === "-") return text;
-  const hours = Number(text.slice(0, 2));
+  const hours = Number(text.split(":")[0]);
   return hours <= 23 ? GoogleSheets.timeCell(text) : text;
 }
 
