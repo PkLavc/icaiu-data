@@ -56,6 +56,17 @@ test('nao apaga um dia existente quando a API volta vazia', () => {
   );
 });
 
+test('duracoes acima de 99 horas nao sao enviadas como TIME invalido', () => {
+  const service = _internals.serviceToRow({
+    id: 'service-long',
+    created_at: '2026-09-15T12:00:00Z',
+    person: {},
+    session: {},
+    service_times: { bot_total_time: 100 * 3600 },
+  });
+  assert.equal(String(service[4]), '100:00:00');
+});
+
 test('compara conjuntos de IDs sem depender da ordem', () => {
   const left = new Map([['1', {}], ['2', {}]]);
   const right = new Map([['2', {}], ['1', {}]]);
