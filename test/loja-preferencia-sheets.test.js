@@ -29,6 +29,31 @@ test('detecta datas e retrocede um dia para reconciliacao', () => {
   );
 });
 
+test('reconciliacao fixa usa o corte atual em vez da ultima data da planilha', () => {
+  assert.equal(
+    _internals.startDayForDataset({
+      values: [['2026-09-15']],
+      cutoffDay: '2026-10-06',
+      forcedDay: '',
+      fallbackDay: '',
+      lookbackDays: 1,
+      reconcileDays: 30,
+    }),
+    '2026-09-06',
+  );
+  assert.equal(
+    _internals.startDayForDataset({
+      values: [['2026-09-15']],
+      cutoffDay: '2026-10-06',
+      forcedDay: '2026-09-15',
+      fallbackDay: '',
+      lookbackDays: 1,
+      reconcileDays: 30,
+    }),
+    '2026-09-15',
+  );
+});
+
 test('mantem os contratos de largura das tres abas', () => {
   const service = _internals.serviceToRow({
     id: 'service-1',
