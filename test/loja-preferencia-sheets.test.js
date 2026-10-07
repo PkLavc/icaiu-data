@@ -54,6 +54,31 @@ test('reconciliacao fixa usa o corte atual em vez da ultima data da planilha', (
   );
 });
 
+test('validacao de 30 dias cobre exatamente os 30 dias completos ate o corte', () => {
+  assert.equal(_internals.validationStartDay('2026-10-06', 30), '2026-09-07');
+
+  const sheet = _internals.countRowsByDay(
+    [['2026-09-07'], ['2026-09-07'], ['2026-10-06'], ['2026-09-06']],
+    '2026-09-07',
+    '2026-10-06',
+  );
+  assert.equal(sheet.get('2026-09-07'), 2);
+  assert.equal(sheet.get('2026-10-06'), 1);
+
+  const source = new Map(sheet);
+  assert.deepEqual(
+    _internals.compareDayCounts('teste', source, sheet, '2026-09-07', '2026-10-06'),
+    { sourceTotal: 3, sheetTotal: 3, days: 30, mismatches: 0 },
+  );
+
+  const divergent = new Map(sheet);
+  divergent.set('2026-09-07', 1);
+  assert.throws(
+    () => _internals.compareDayCounts('teste', source, divergent, '2026-09-07', '2026-10-06'),
+    /Validacao de teste falhou/,
+  );
+});
+
 test('mantem os contratos de largura das tres abas', () => {
   const service = _internals.serviceToRow({
     id: 'service-1',

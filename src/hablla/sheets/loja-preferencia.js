@@ -980,6 +980,127 @@ async function syncCards(context) {
   }
 }
 
+
+function validationStartDay(cutoffDay, days) {
+  if (!Number.isInteger(days) || days < 1) return null;
+  return addDays(cutoffDay, -(days - 1));
+}
+
+function emptyDayCounts(startDay, endDay) {
+  return new Map(daySequence(startDay, endDay).map((day) => [day, 0]));
+}
+
+function countRowsByDay(values, startDay, endDay) {
+  const counts = emptyDayCounts(startDay, endDay);
+  for (const row of values || []) {
+    const day = parseDay(Array.isArray(row) ? row[0] : row);
+    if (day && counts.has(day)) counts.set(day, counts.get(day) + 1);
+  }
+  return counts;
+}
+
+function countItemsByDay(items, startDay, endDay, getDate) {
+  const counts = emptyDayCounts(startDay, endDay);
+  for (const item of items || []) {
+    const day = parseDay(getDate(item));
+    if (day && counts.has(day)) counts.set(day, counts.get(day) + 1);
+  }
+  return counts;
+}
+
+function compareDayCounts(label, sourceCounts, sheetCounts, startDay, endDay) {
+  const days = daySequence(startDay, endDay);
+  const mismatches = [];
+  let sourceTotal = 0;
+  let sheetTotal = 0;
+
+  for (const day of days) {
+    const source = Number(sourceCounts.get(day) || 0);
+    const sheet = Number(sheetCounts.get(day) || 0);
+    sourceTotal += source;
+    sheetTotal += sheet;
+    if (source !== sheet) mismatches.push({ day, source, sheet });
+  }
+
+  console.log(
+    `[validacao-30d] ${label}: Hablla=${sourceTotal}, planilha=${sheetTotal}, dias=${days.length}, divergencias=${mismatches.length}.`,
+  );
+
+  if (mismatches.length) {
+    const sample = mismatches
+      .slice(0, 12)
+      .map((item) => `${item.day}:Hablla=${item.source}/planilha=${item.sheet}`)
+      .join(", ");
+    throw new Error(
+      `Validacao de ${label} falhou nos ultimos ${days.length} dias. Total Hablla=${sourceTotal}, planilha=${sheetTotal}. Divergencias: ${sample}`,
+    );
+  }
+
+  return { sourceTotal, sheetTotal, days: days.length, mismatches: 0 };
+}
+
+async function validateLastDays(context, datasets, validationDays) {
+  if (validationDays < 1) return;
+  const { sheets, hablla, workspaceId, boardId, cutoffDay } = context;
+  const startDay = validationStartDay(cutoffDay, validationDays);
+  console.log(
+    `[validacao-30d] Conferindo ${validationDays} dias completos: ${startDay} ate ${cutoffDay}.`,
+  );
+
+  if (datasets.has("atendimentos")) {
+    const source = await fetchServices(hablla, workspaceId, startDay, cutoffDay);
+    const sourceCounts = countItemsByDay(
+      source,
+      startDay,
+      cutoffDay,
+      (item) => item.created_at,
+    );
+    const sheetValues = await readBodyColumns(
+      sheets,
+      SHEETS.atendimentos.title,
+      ["A"],
+      SHEETS.atendimentos.headerRows + 1,
+    );
+    const sheetCounts = countRowsByDay(sheetValues, startDay, cutoffDay);
+    compareDayCounts("atendimentos", sourceCounts, sheetCounts, startDay, cutoffDay);
+  }
+
+  if (datasets.has("atendentes")) {
+    const sourceCounts = emptyDayCounts(startDay, cutoffDay);
+    for (const day of daySequence(startDay, cutoffDay)) {
+      const rows = await fetchAttendantsDay(hablla, workspaceId, day);
+      sourceCounts.set(day, rows.length);
+    }
+    const sheetValues = await readBodyColumns(
+      sheets,
+      SHEETS.atendentes.title,
+      ["A"],
+      SHEETS.atendentes.headerRows + 1,
+    );
+    const sheetCounts = countRowsByDay(sheetValues, startDay, cutoffDay);
+    compareDayCounts("atendentes", sourceCounts, sheetCounts, startDay, cutoffDay);
+  }
+
+  if (datasets.has("cards")) {
+    const listIds = await discoverCardListIds(sheets, hablla, workspaceId, boardId);
+    const sourceCounts = emptyDayCounts(startDay, cutoffDay);
+    for (const day of daySequence(startDay, cutoffDay)) {
+      const cards = await fetchCardsForDay(hablla, workspaceId, listIds, day);
+      sourceCounts.set(day, cards.length);
+    }
+    const sheetValues = await readBodyColumns(
+      sheets,
+      SHEETS.cards.title,
+      ["C"],
+      SHEETS.cards.headerRows + 1,
+    );
+    const sheetCounts = countRowsByDay(sheetValues, startDay, cutoffDay);
+    compareDayCounts("cards", sourceCounts, sheetCounts, startDay, cutoffDay);
+  }
+
+  console.log(`[validacao-30d] Validacao concluida para os ultimos ${validationDays} dias.`);
+}
+
 async function run() {
   try {
     const spreadsheetId = process.env.LOJA_PREFERENCIA_SPREADSHEET_ID || process.env.HABLLA_SPREADSHEET_ID;
@@ -995,6 +1116,7 @@ async function run() {
     const fallbackFrom = process.env.LOJA_PREFERENCIA_FROM || "";
     const lookbackDays = nonNegativeInteger(process.env.LOJA_PREFERENCIA_LOOKBACK_DAYS, 1, "LOJA_PREFERENCIA_LOOKBACK_DAYS");
     const reconcileDays = nonNegativeInteger(process.env.LOJA_PREFERENCIA_RECONCILE_DAYS, 0, "LOJA_PREFERENCIA_RECONCILE_DAYS");
+    const validationDays = nonNegativeInteger(process.env.LOJA_PREFERENCIA_VALIDATE_DAYS, 30, "LOJA_PREFERENCIA_VALIDATE_DAYS");
 
     const sheets = new GoogleSheets({ spreadsheetId, accessToken: token });
     const sheetProperties = await sheets.getSheetPropertiesByTitle({ forceRefresh: true });
@@ -1004,7 +1126,8 @@ async function run() {
     if (datasets.has("atendimentos")) await syncAtendimentos(context);
     if (datasets.has("atendentes")) await syncAtendentes(context);
     if (datasets.has("cards")) await syncCards(context);
-    console.log("[loja-preferencia] sincronizacao concluida.");
+    await validateLastDays(context, datasets, validationDays);
+    console.log("[loja-preferencia] sincronizacao e validacao concluidas.");
   } catch (error) {
     console.error(`[loja-preferencia] falha: ${formatPublicError(error)}`);
     process.exitCode = 1;
@@ -1027,6 +1150,10 @@ module.exports._internals = {
   selectedDatasets,
   serviceToRow,
   startDayForDataset,
+  validationStartDay,
+  countRowsByDay,
+  countItemsByDay,
+  compareDayCounts,
 };
 
 if (require.main === module) run();
