@@ -16,6 +16,7 @@ test('usa os nomes e offsets reais das tres abas', () => {
 test('detecta datas e retrocede um dia para reconciliacao', () => {
   assert.equal(_internals.parseDay('16/09/2026 10:15'), '2026-09-16');
   assert.equal(_internals.parseDay('2026-10-06T12:00:00Z'), '2026-10-06');
+  assert.equal(_internals.parseDay('2026-09-08T01:30:00Z'), '2026-09-07');
   assert.equal(
     _internals.startDayForDataset({
       values: [['15/09/2026'], ['16/09/2026']],
