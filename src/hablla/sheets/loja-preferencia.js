@@ -161,8 +161,9 @@ function latestDay(values, cutoffDay) {
   return latest;
 }
 
-function startDayForDataset({ values, cutoffDay, forcedDay, fallbackDay, lookbackDays }) {
+function startDayForDataset({ values, cutoffDay, forcedDay, fallbackDay, lookbackDays, reconcileDays = 0 }) {
   if (forcedDay) return validateDay(forcedDay, "Data inicial");
+  if (reconcileDays > 0) return addDays(cutoffDay, -reconcileDays);
   const last = latestDay(values, cutoffDay);
   if (last) return addDays(last, -lookbackDays);
   if (fallbackDay) return validateDay(fallbackDay, "LOJA_PREFERENCIA_FROM");
@@ -865,12 +866,12 @@ function assertReplacementIsSafe(bodyState, stateDateIndex, day, newRows, datase
 }
 
 async function syncAtendimentos(context) {
-  const { sheets, hablla, workspaceId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays } = context;
+  const { sheets, hablla, workspaceId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays, reconcileDays } = context;
   const title = SHEETS.atendimentos.title;
   const properties = required(sheetProperties[title], `Aba ${title}`);
   let bodyState = await readBodyColumns(sheets, title, ["A"], 2);
   const forced = process.env.LOJA_PREFERENCIA_ATENDIMENTOS_FROM || process.env.LOJA_PREFERENCIA_FROM;
-  const startDay = startDayForDataset({ values: bodyState, cutoffDay, forcedDay: forced, fallbackDay: fallbackFrom, lookbackDays });
+  const startDay = startDayForDataset({ values: bodyState, cutoffDay, forcedDay: forced, fallbackDay: fallbackFrom, lookbackDays, reconcileDays });
   if (startDay > cutoffDay) return;
   console.log(`[atendimentos] sincronizando ${startDay} ate ${cutoffDay}.`);
   const services = await fetchServices(hablla, workspaceId, startDay, cutoffDay);
@@ -903,12 +904,12 @@ async function syncAtendimentos(context) {
 }
 
 async function syncAtendentes(context) {
-  const { sheets, hablla, workspaceId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays } = context;
+  const { sheets, hablla, workspaceId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays, reconcileDays } = context;
   const title = SHEETS.atendentes.title;
   const properties = required(sheetProperties[title], `Aba ${title}`);
   let bodyState = await readBodyColumns(sheets, title, ["A"], 2);
   const forced = process.env.LOJA_PREFERENCIA_ATENDENTES_FROM || process.env.LOJA_PREFERENCIA_FROM;
-  const startDay = startDayForDataset({ values: bodyState, cutoffDay, forcedDay: forced, fallbackDay: fallbackFrom, lookbackDays });
+  const startDay = startDayForDataset({ values: bodyState, cutoffDay, forcedDay: forced, fallbackDay: fallbackFrom, lookbackDays, reconcileDays });
   if (startDay > cutoffDay) return;
   console.log(`[atendentes] sincronizando ${startDay} ate ${cutoffDay}.`);
   let gridRowCount = Number(properties.gridProperties?.rowCount || 1);
@@ -935,12 +936,12 @@ async function syncAtendentes(context) {
 }
 
 async function syncCards(context) {
-  const { sheets, hablla, workspaceId, boardId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays } = context;
+  const { sheets, hablla, workspaceId, boardId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays, reconcileDays } = context;
   const title = SHEETS.cards.title;
   const properties = required(sheetProperties[title], `Aba ${title}`);
   let bodyState = await readBodyColumns(sheets, title, ["C"], 3);
   const forced = process.env.LOJA_PREFERENCIA_CARDS_FROM || process.env.LOJA_PREFERENCIA_FROM;
-  const startDay = startDayForDataset({ values: bodyState, cutoffDay, forcedDay: forced, fallbackDay: fallbackFrom, lookbackDays });
+  const startDay = startDayForDataset({ values: bodyState, cutoffDay, forcedDay: forced, fallbackDay: fallbackFrom, lookbackDays, reconcileDays });
   if (startDay > cutoffDay) return;
   const customHeaderRows = await sheets.getValues("'Cartões_Base'!AL1:AX1");
   const customHeaders = Array.from({ length: 13 }, (_, index) => String(customHeaderRows[0]?.[index] || "").trim());
@@ -952,6 +953,13 @@ async function syncCards(context) {
     const rows = cards
       .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")))
       .map((card) => cardToRow(card, customHeaders));
+    const existingCardsForDay = bodyState.filter((row) => parseDay(row[0]) === day).length;
+    if (!rows.length && existingCardsForDay) {
+      console.warn(
+        `[cards] ${day}: API retornou zero, mas existem ${existingCardsForDay} linhas; preservando o dia existente e continuando a reconciliacao.`,
+      );
+      continue;
+    }
     assertReplacementIsSafe(bodyState, 0, day, rows, "cards");
     const result = await replaceDayRows({
       sheets,
@@ -986,11 +994,12 @@ async function run() {
       : previousLocalDay();
     const fallbackFrom = process.env.LOJA_PREFERENCIA_FROM || "";
     const lookbackDays = nonNegativeInteger(process.env.LOJA_PREFERENCIA_LOOKBACK_DAYS, 1, "LOJA_PREFERENCIA_LOOKBACK_DAYS");
+    const reconcileDays = nonNegativeInteger(process.env.LOJA_PREFERENCIA_RECONCILE_DAYS, 0, "LOJA_PREFERENCIA_RECONCILE_DAYS");
 
     const sheets = new GoogleSheets({ spreadsheetId, accessToken: token });
     const sheetProperties = await sheets.getSheetPropertiesByTitle({ forceRefresh: true });
     const hablla = await getHabllaClient();
-    const context = { sheets, hablla, workspaceId, boardId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays };
+    const context = { sheets, hablla, workspaceId, boardId, sheetProperties, cutoffDay, fallbackFrom, lookbackDays, reconcileDays };
 
     if (datasets.has("atendimentos")) await syncAtendimentos(context);
     if (datasets.has("atendentes")) await syncAtendentes(context);

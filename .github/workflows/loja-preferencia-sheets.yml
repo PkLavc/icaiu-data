@@ -24,9 +24,13 @@ on:
         required: false
         default: ''
       lookback_days:
-        description: 'Dias para reconciliar; 30 valida aproximadamente o ultimo mes'
+        description: 'Sobreposicao normal em dias'
         required: false
         default: '1'
+      reconcile_days:
+        description: 'Janela fixa para reconciliacao completa; 30 valida aproximadamente o ultimo mes'
+        required: false
+        default: '0'
 
 concurrency:
   group: loja-preferencia-sheets
@@ -66,7 +70,8 @@ jobs:
           LOJA_PREFERENCIA_DATASETS: ${{ github.event.inputs.datasets || 'atendimentos,atendentes,cards' }}
           LOJA_PREFERENCIA_FROM: ${{ github.event.inputs.from_date || '' }}
           LOJA_PREFERENCIA_CARDS_FROM: ${{ github.event.inputs.cards_from || '' }}
-          LOJA_PREFERENCIA_LOOKBACK_DAYS: ${{ github.event_name == 'push' && '30' || github.event.schedule == '47 8 * * 0' && '30' || github.event.inputs.lookback_days || vars.LOJA_PREFERENCIA_LOOKBACK_DAYS || '1' }}
+          LOJA_PREFERENCIA_LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || vars.LOJA_PREFERENCIA_LOOKBACK_DAYS || '1' }}
+          LOJA_PREFERENCIA_RECONCILE_DAYS: ${{ github.event.schedule == '47 8 * * 0' && '30' || github.event.inputs.reconcile_days || '0' }}
           LOJA_PREFERENCIA_CARD_LIST_IDS: ${{ vars.LOJA_PREFERENCIA_CARD_LIST_IDS }}
           LOJA_PREFERENCIA_CARD_LIST_DISCOVERY_PAGES: ${{ vars.LOJA_PREFERENCIA_CARD_LIST_DISCOVERY_PAGES || '20' }}
           LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY: ${{ vars.LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY || '200' }}
