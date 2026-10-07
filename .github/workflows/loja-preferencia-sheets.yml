@@ -31,6 +31,10 @@ on:
         description: 'Janela fixa para reconciliacao completa; 30 valida aproximadamente o ultimo mes'
         required: false
         default: '0'
+      validation_days:
+        description: 'Quantidade de dias completos para validar API x planilha'
+        required: false
+        default: '30'
 
 concurrency:
   group: loja-preferencia-sheets
@@ -72,6 +76,7 @@ jobs:
           LOJA_PREFERENCIA_CARDS_FROM: ${{ github.event.inputs.cards_from || '' }}
           LOJA_PREFERENCIA_LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || vars.LOJA_PREFERENCIA_LOOKBACK_DAYS || '1' }}
           LOJA_PREFERENCIA_RECONCILE_DAYS: ${{ github.event.schedule == '47 8 * * 0' && '30' || github.event.inputs.reconcile_days || '0' }}
+          LOJA_PREFERENCIA_VALIDATE_DAYS: ${{ github.event.inputs.validation_days || vars.LOJA_PREFERENCIA_VALIDATE_DAYS || '30' }}
           LOJA_PREFERENCIA_CARD_LIST_IDS: ${{ vars.LOJA_PREFERENCIA_CARD_LIST_IDS }}
           LOJA_PREFERENCIA_CARD_LIST_DISCOVERY_PAGES: ${{ vars.LOJA_PREFERENCIA_CARD_LIST_DISCOVERY_PAGES || '20' }}
           LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY: ${{ vars.LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY || '200' }}
