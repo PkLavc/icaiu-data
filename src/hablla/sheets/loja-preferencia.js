@@ -784,7 +784,10 @@ function cardCreatedInDay(card, day) {
 }
 
 function cardFilterRange(day) {
-  return { start_date: day, end_date: addDays(day, 1) };
+  // Hablla interprets date-only bounds independently of America/Sao_Paulo.
+  // Query two calendar days and keep only cards whose created_at belongs
+  // to the target Sao Paulo day. This covers the UTC boundary safely.
+  return { start_date: day, end_date: addDays(day, 2) };
 }
 
 async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
@@ -824,21 +827,10 @@ async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
     }
   }
   const totalItems = Number(first.data?.totalItems || 0);
-  if (outside) {
-    throw new Error(`Filtro de data de cards retornou ${outside} registros fora de ${day}`);
-  }
   if (totalItems && occurrences < totalItems) {
     throw new Error(`API de cards informou ${totalItems} ocorrencias, mas retornou ${occurrences}`);
   }
   return { byId, occurrences, outside, totalItems, totalPages };
-}
-
-function assertNoSensitiveCardIdsInPublicMessages() {
-  const messages = [
-    "Filtro de data de cards retornou registros fora da janela",
-    "API de cards informou ocorrencias divergentes",
-  ];
-  return messages.every((message) => !/[a-f0-9]{24}/i.test(message));
 }
 
 function sameIdSet(left, right) {
@@ -1155,7 +1147,6 @@ module.exports._internals = {
   attendantToRow,
   cardToRow,
   cardFilterRange,
-  assertNoSensitiveCardIdsInPublicMessages,
   customFieldValue,
   daySequence,
   latestDay,
