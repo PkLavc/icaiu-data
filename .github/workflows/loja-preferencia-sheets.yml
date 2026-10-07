@@ -1,0 +1,79 @@
+name: Loja Preferencia Sheets
+
+on:
+  schedule:
+    - cron: '17 7 * * *'
+    - cron: '47 8 * * 0'
+  push:
+    branches: [main]
+    paths:
+      - 'src/hablla/sheets/loja-preferencia.js'
+      - '.github/workflows/loja-preferencia-sheets.yml'
+  workflow_dispatch:
+    inputs:
+      datasets:
+        description: 'atendimentos,atendentes,cards'
+        required: false
+        default: 'atendimentos,atendentes,cards'
+      from_date:
+        description: 'Forcar inicio geral (YYYY-MM-DD); deixe vazio no uso normal'
+        required: false
+        default: ''
+      cards_from:
+        description: 'Forcar inicio apenas dos cards (YYYY-MM-DD)'
+        required: false
+        default: ''
+      lookback_days:
+        description: 'Dias para reconciliar; 30 valida aproximadamente o ultimo mes'
+        required: false
+        default: '1'
+
+concurrency:
+  group: loja-preferencia-sheets
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Sincronizar Loja Preferencia
+        run: node src/sheets/run.js hablla/sheets/loja-preferencia.js
+        env:
+          REQUIRED_ENV: GOOGLE_CLIENT_EMAIL,GOOGLE_PRIVATE_KEY,HABLLA_WORKSPACE_ID,HABLLA_BOARD_ID,LOJA_PREFERENCIA_SPREADSHEET_ID
+          GOOGLE_CLIENT_EMAIL: ${{ secrets.GOOGLE_CLIENT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          HABLLA_TOKEN: ${{ secrets.HABLLA_TOKEN }}
+          HABLLA_EMAIL: ${{ secrets.HABLLA_EMAIL }}
+          HABLLA_PASSWORD: ${{ secrets.HABLLA_PASSWORD }}
+          HABLLA_WORKSPACE_ID: ${{ secrets.HABLLA_WORKSPACE_ID }}
+          HABLLA_BOARD_ID: ${{ secrets.HABLLA_BOARD_ID }}
+          LOJA_PREFERENCIA_SPREADSHEET_ID: ${{ secrets.LOJA_PREFERENCIA_SPREADSHEET_ID }}
+          LOJA_PREFERENCIA_DATASETS: ${{ github.event.inputs.datasets || 'atendimentos,atendentes,cards' }}
+          LOJA_PREFERENCIA_FROM: ${{ github.event.inputs.from_date || '' }}
+          LOJA_PREFERENCIA_CARDS_FROM: ${{ github.event.inputs.cards_from || '' }}
+          LOJA_PREFERENCIA_LOOKBACK_DAYS: ${{ github.event_name == 'push' && '30' || github.event.schedule == '47 8 * * 0' && '30' || github.event.inputs.lookback_days || vars.LOJA_PREFERENCIA_LOOKBACK_DAYS || '1' }}
+          LOJA_PREFERENCIA_CARD_LIST_IDS: ${{ vars.LOJA_PREFERENCIA_CARD_LIST_IDS }}
+          LOJA_PREFERENCIA_CARD_LIST_DISCOVERY_PAGES: ${{ vars.LOJA_PREFERENCIA_CARD_LIST_DISCOVERY_PAGES || '20' }}
+          LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY: ${{ vars.LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY || '200' }}
+          LOJA_PREFERENCIA_SERVICES_SAFE_PAGES: ${{ vars.LOJA_PREFERENCIA_SERVICES_SAFE_PAGES || '180' }}
+          LOJA_PREFERENCIA_SERVICES_MAX_PAGES: ${{ vars.LOJA_PREFERENCIA_SERVICES_MAX_PAGES || '1000' }}
+          LOJA_PREFERENCIA_SHEETS_CHUNK_ROWS: ${{ vars.LOJA_PREFERENCIA_SHEETS_CHUNK_ROWS || '200' }}
+          LOJA_PREFERENCIA_SHEETS_CHUNK_BYTES: ${{ vars.LOJA_PREFERENCIA_SHEETS_CHUNK_BYTES || '1500000' }}
+          HABLLA_MIN_INTERVAL_MS: ${{ vars.HABLLA_MIN_INTERVAL_MS || '500' }}
+          HABLLA_REQUEST_TIMEOUT_MS: ${{ vars.HABLLA_REQUEST_TIMEOUT_MS || '60000' }}
+          HABLLA_MAX_ATTEMPTS: ${{ vars.HABLLA_MAX_ATTEMPTS || '5' }}
