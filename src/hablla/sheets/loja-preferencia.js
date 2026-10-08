@@ -960,20 +960,22 @@ async function fetchCardsForDay(hablla, workspaceId, listIds, day) {
   const all = new Map();
   for (let index = 0; index < listIds.length; index += 1) {
     const listId = listIds[index];
-    const desc = await fetchCardListPass(hablla, workspaceId, listId, day, "desc");
-    const asc = await fetchCardListPass(hablla, workspaceId, listId, day, "asc");
-    if (!sameIdSet(desc.byId, asc.byId)) {
-      throw new Error(`Cards instaveis na lista ${index + 1} em ${day}: DESC=${desc.byId.size}, ASC=${asc.byId.size}`);
-    }
-    for (const [id, item] of desc.byId) {
-      const alternative = asc.byId.get(id);
-      const selected = alternative && alternative.updatedAt > item.updatedAt ? alternative : item;
+    const listLabel = `lista ${index + 1}/${listIds.length}`;
+    const stable = await fetchStableCardList(
+      hablla,
+      workspaceId,
+      listId,
+      day,
+      listLabel,
+    );
+    for (const [id, item] of stable.byId) {
       const current = all.get(id);
-      if (!current || selected.updatedAt >= current.updatedAt) all.set(id, selected);
+      if (!current || item.updatedAt >= current.updatedAt) all.set(id, item);
     }
     console.log(
-      `[cards] ${day} lista ${index + 1}/${listIds.length}: ${desc.byId.size} IDs unicos ` +
-      `(ocorrencias=${desc.totalItems}, paginas=${desc.totalPages}, janelas=${desc.windows}, fora-da-janela=${desc.outside}).`,
+      `[cards] ${day} ${listLabel}: ${stable.byId.size} IDs unicos ` +
+      `(ocorrencias=${stable.desc.totalItems}, paginas=${stable.desc.totalPages}, ` +
+      `janelas=${stable.desc.windows}, rodadas=${stable.rounds}, fora-da-janela=${stable.desc.outside}).`,
     );
   }
   return [...all.values()].map(({ card }) => card);
@@ -1271,6 +1273,7 @@ module.exports._internals = {
   parseDay,
   replaceDayRows,
   sameIdSet,
+  mergeCardIdMaps,
   selectedDatasets,
   serviceToRow,
   startDayForDataset,
