@@ -143,6 +143,21 @@ test('duracoes acima de 99 horas nao sao enviadas como TIME invalido', () => {
   assert.equal(String(service[4]), '100:00:00');
 });
 
+test('uniao de leituras de cards preserva IDs de ambas as direcoes', () => {
+  const older = { updatedAt: 10, card: { id: 'a' } };
+  const newer = { updatedAt: 20, card: { id: 'a' } };
+  const desc = new Map([
+    ['a', older],
+    ['b', { updatedAt: 10, card: { id: 'b' } }],
+  ]);
+  const asc = new Map([
+    ['a', newer],
+    ['c', { updatedAt: 10, card: { id: 'c' } }],
+  ]);
+  const merged = _internals.mergeCardIdMaps(desc, asc);
+  assert.deepEqual([...merged.keys()].sort(), ['a', 'b', 'c']);
+  assert.equal(merged.get('a').updatedAt, 20);
+});
 test('compara conjuntos de IDs sem depender da ordem', () => {
   const left = new Map([['1', {}], ['2', {}]]);
   const right = new Map([['2', {}], ['1', {}]]);
