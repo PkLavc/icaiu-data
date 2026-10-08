@@ -54,11 +54,13 @@ test('reconciliacao fixa usa o corte atual em vez da ultima data da planilha', (
   );
 });
 
-test('cards usam end_date exclusivo no dia seguinte', () => {
+test('cards usam janela segura de dois dias e filtragem local por Sao Paulo', () => {
   assert.deepEqual(
     _internals.cardFilterRange('2026-09-15'),
-    { start_date: '2026-09-15', end_date: '2026-09-16' },
+    { start_date: '2026-09-15', end_date: '2026-09-17' },
   );
+  assert.equal(_internals.parseDay('2026-09-16T01:30:00Z'), '2026-09-15');
+  assert.equal(_internals.parseDay('2026-09-16T03:30:00Z'), '2026-09-16');
 });
 
 test('validacao de 30 dias cobre exatamente os 30 dias completos ate o corte', () => {

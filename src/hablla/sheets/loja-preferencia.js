@@ -784,7 +784,10 @@ function cardCreatedInDay(card, day) {
 }
 
 function cardFilterRange(day) {
-  return { start_date: day, end_date: addDays(day, 1) };
+  // Hablla interprets date-only bounds independently of America/Sao_Paulo.
+  // Query two calendar days and keep only cards whose created_at belongs
+  // to the target Sao Paulo day. This covers the UTC boundary safely.
+  return { start_date: day, end_date: addDays(day, 2) };
 }
 
 async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
@@ -824,11 +827,8 @@ async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
     }
   }
   const totalItems = Number(first.data?.totalItems || 0);
-  if (outside) {
-    throw new Error(`Filtro de data da lista ${listId} retornou ${outside} cards fora de ${day}`);
-  }
   if (totalItems && occurrences < totalItems) {
-    throw new Error(`Lista ${listId}: API informou ${totalItems} ocorrencias, mas retornou ${occurrences}`);
+    throw new Error(`API de cards informou ${totalItems} ocorrencias, mas retornou ${occurrences}`);
   }
   return { byId, occurrences, outside, totalItems, totalPages };
 }
