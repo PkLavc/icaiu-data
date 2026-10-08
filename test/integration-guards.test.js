@@ -18,9 +18,21 @@ test("respostas 200 exigem listas explicitas", () => {
     extractZohoRecords({ status: 200, data: { code: 3100 } }, "teste"),
     [],
   );
+  assert.deepEqual(
+    extractZohoRecords(
+      {
+        status: 200,
+        data: { code: 3100, data: null, message: "No Data Available" },
+      },
+      "teste",
+    ),
+    [],
+  );
   assert.throws(
     () => extractZohoRecords({ status: 200, data: {} }, "teste"),
-    /lista invalida/,
+    (error) =>
+      error.code === "ZOHO_INVALID_RECORD_LIST" &&
+      /lista invalida/.test(error.message),
   );
   assert.deepEqual(
     extractZenviaList(
