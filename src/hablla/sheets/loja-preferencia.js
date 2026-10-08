@@ -784,10 +784,10 @@ function cardCreatedInDay(card, day) {
 }
 
 function cardFilterRange(day) {
-  // Hablla interprets date-only bounds independently of America/Sao_Paulo.
-  // Query two calendar days and keep only cards whose created_at belongs
-  // to the target Sao Paulo day. This covers the UTC boundary safely.
-  return { start_date: day, end_date: addDays(day, 2) };
+  // Usa os limites exatos do dia em America/Sao_Paulo convertidos para UTC.
+  // Evita puxar dois dias inteiros apenas para cobrir a virada UTC.
+  const range = localDayBounds(day);
+  return { start_date: range.start, end_date: range.end };
 }
 
 async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {

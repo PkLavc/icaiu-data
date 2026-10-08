@@ -54,10 +54,13 @@ test('reconciliacao fixa usa o corte atual em vez da ultima data da planilha', (
   );
 });
 
-test('cards usam janela segura de dois dias e filtragem local por Sao Paulo', () => {
+test('cards usam limites ISO exatos do dia em Sao Paulo', () => {
   assert.deepEqual(
     _internals.cardFilterRange('2026-09-15'),
-    { start_date: '2026-09-15', end_date: '2026-09-17' },
+    {
+      start_date: '2026-09-15T03:00:00.000Z',
+      end_date: '2026-09-16T02:59:59.999Z',
+    },
   );
   assert.equal(_internals.parseDay('2026-09-16T01:30:00Z'), '2026-09-15');
   assert.equal(_internals.parseDay('2026-09-16T03:30:00Z'), '2026-09-16');
