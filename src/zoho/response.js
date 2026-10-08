@@ -6,8 +6,7 @@ function extractZohoRecords(response, dataset) {
   if (
     body &&
     typeof body === "object" &&
-    Number(body.code) === 3100 &&
-    !Object.prototype.hasOwnProperty.call(body, "data")
+    Number(body.code) === 3100
   ) {
     return [];
   }
@@ -17,7 +16,9 @@ function extractZohoRecords(response, dataset) {
     !Object.prototype.hasOwnProperty.call(body, "data") ||
     !Array.isArray(body.data)
   ) {
-    throw new Error(`Zoho retornou lista invalida para ${dataset}`);
+    const error = new Error(`Zoho retornou lista invalida para ${dataset}`);
+    error.code = "ZOHO_INVALID_RECORD_LIST";
+    throw error;
   }
   return body.data;
 }
