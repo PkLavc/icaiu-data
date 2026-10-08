@@ -8,6 +8,7 @@ const {
 } = require("../../lib/sao-paulo-date");
 const createZohoClient = require("../api");
 const { extractZohoRecords } = require("../response");
+const { sleep } = require("../../lib/http-retry");
 const { digitsToNumber, toDateTimeCell } = require("./value-types");
 
 // Função para registrar eventos sem expor dados sensíveis
@@ -86,6 +87,33 @@ function booleanOption(value, fallback, name) {
   throw new Error(`${name} precisa ser true ou false`);
 }
 
+async function fetchZohoRecordsPage(
+  zoho,
+  queryUrl,
+  params,
+  {
+    maxAttempts = 3,
+    retryDelayMs = 1000,
+    sleepFn = sleep,
+    dataset = "leads Sheets",
+  } = {},
+) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await zoho.get(queryUrl, { params });
+    try {
+      return extractZohoRecords(response, dataset);
+    } catch (error) {
+      if (error.code !== "ZOHO_INVALID_RECORD_LIST" || attempt === maxAttempts) {
+        throw error;
+      }
+      secureLog(
+        `Resposta Zoho invalida; repetindo leitura (${attempt + 1}/${maxAttempts})`,
+      );
+      await sleepFn(retryDelayMs * attempt);
+    }
+  }
+  throw new Error("Zoho leads nao estabilizou apos retries");
+}
 function formatZohoDate(date) {
   return `${String(date.getUTCDate()).padStart(2, "0")}-${MONTHS[date.getUTCMonth()]}-${date.getUTCFullYear()}`;
 }
@@ -281,11 +309,23 @@ async function run() {
       secureLog(`Buscando registros: índice ${fromIndex}`);
 
       try {
-        const resp = await zoho.get(queryUrl, {
-          params: { from: fromIndex, limit: limit, criteria: criteria },
-        });
-
-        const data = extractZohoRecords(resp, "leads Sheets");
+        const data = await fetchZohoRecordsPage(
+          zoho,
+          queryUrl,
+          { from: fromIndex, limit: limit, criteria: criteria },
+          {
+            maxAttempts: positiveIntegerOption(
+              process.env.ZOHO_LEADS_SHEETS_RESPONSE_ATTEMPTS,
+              3,
+              "ZOHO_LEADS_SHEETS_RESPONSE_ATTEMPTS",
+            ),
+            retryDelayMs: positiveIntegerOption(
+              process.env.ZOHO_LEADS_SHEETS_RESPONSE_RETRY_MS,
+              1000,
+              "ZOHO_LEADS_SHEETS_RESPONSE_RETRY_MS",
+            ),
+          },
+        );
         if (data.length === 0) break;
         pageTracker.observe(dedupeZohoRecordsById(data));
 
@@ -356,6 +396,7 @@ run.isLeadDateInWindow = isLeadDateInWindow;
 run.buildLeadsCriteria = buildLeadsCriteria;
 run.dedupeZohoRecordsById = dedupeZohoRecordsById;
 run.assertNonEmptyWindowReplacement = assertNonEmptyWindowReplacement;
+run.fetchZohoRecordsPage = fetchZohoRecordsPage;
 module.exports = run;
 
 if (require.main === module) {
