@@ -2,7 +2,11 @@ name: Loja Preferencia Sheets
 
 on:
   schedule:
-    - cron: '17 7 * * *'
+    # 04:17 BRT, de segunda a sabado
+    - cron: '17 7 * * 1-6'
+    # 16:17 BRT, todos os dias
+    - cron: '17 19 * * *'
+    # Domingo 05:47 BRT: segunda execucao do dia + reconciliacao de 30 dias
     - cron: '47 8 * * 0'
   push:
     branches: [main]
