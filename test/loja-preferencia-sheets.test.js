@@ -54,6 +54,19 @@ test('reconciliacao fixa usa o corte atual em vez da ultima data da planilha', (
   );
 });
 
+test('janela de cards pode ser dividida sem buraco entre as metades', () => {
+  const parts = _internals.splitIsoRange({
+    start_date: '2026-09-28T03:00:00.000Z',
+    end_date: '2026-09-29T02:59:59.999Z',
+  });
+  assert.equal(parts.length, 2);
+  const leftEnd = new Date(parts[0].end_date).getTime();
+  const rightStart = new Date(parts[1].start_date).getTime();
+  assert.equal(rightStart, leftEnd + 1);
+  assert.equal(parts[0].start_date, '2026-09-28T03:00:00.000Z');
+  assert.equal(parts[1].end_date, '2026-09-29T02:59:59.999Z');
+});
+
 test('cards usam limites ISO exatos do dia em Sao Paulo', () => {
   assert.deepEqual(
     _internals.cardFilterRange('2026-09-15'),

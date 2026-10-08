@@ -790,8 +790,41 @@ function cardFilterRange(day) {
   return { start_date: range.start, end_date: range.end };
 }
 
-async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
-  const range = cardFilterRange(day);
+function splitIsoRange(range) {
+  const startMs = new Date(range.start_date).getTime();
+  const endMs = new Date(range.end_date).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    throw new Error("Janela de cards invalida");
+  }
+  if (endMs - startMs <= 1) return null;
+
+  const midpoint = Math.floor((startMs + endMs) / 2);
+  return [
+    {
+      start_date: new Date(startMs).toISOString(),
+      end_date: new Date(midpoint).toISOString(),
+    },
+    {
+      start_date: new Date(midpoint + 1).toISOString(),
+      end_date: new Date(endMs).toISOString(),
+    },
+  ];
+}
+
+function mergeCardPass(target, source) {
+  for (const [id, item] of source.byId) {
+    const current = target.byId.get(id);
+    if (!current || item.updatedAt >= current.updatedAt) target.byId.set(id, item);
+  }
+  target.occurrences += source.occurrences;
+  target.outside += source.outside;
+  target.totalItems += source.totalItems;
+  target.totalPages += source.totalPages;
+  target.windows += source.windows;
+  return target;
+}
+
+async function fetchCardListWindow(hablla, workspaceId, listId, day, direction, range, maxPages) {
   const params = (page) => ({
     list: listId,
     start_date: range.start_date,
@@ -801,19 +834,37 @@ async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
     order: "created_at",
     direction_order: direction,
   });
+
   const first = await hablla.get(`/v2/workspaces/${workspaceId}/cards`, { params: params(1) });
   const totalPages = Math.max(1, Number(first.data?.totalPages || 1));
-  const maxPages = positiveInteger(process.env.LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY, 200, "LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY");
+
   if (totalPages > maxPages) {
-    throw new Error(`Uma lista de cards em ${day} exige ${totalPages} paginas; limite seguro=${maxPages}`);
+    const parts = splitIsoRange(range);
+    if (!parts) {
+      throw new Error(`Volume de cards em ${day} excede o limite mesmo na menor janela possivel`);
+    }
+    const combined = { byId: new Map(), occurrences: 0, outside: 0, totalItems: 0, totalPages: 0, windows: 0 };
+    for (const part of parts) {
+      mergeCardPass(
+        combined,
+        await fetchCardListWindow(hablla, workspaceId, listId, day, direction, part, maxPages),
+      );
+    }
+    return combined;
   }
+
   const byId = new Map();
   let occurrences = 0;
   let outside = 0;
+
   for (let page = 1; page <= totalPages; page += 1) {
-    const response = page === 1 ? first : await hablla.get(`/v2/workspaces/${workspaceId}/cards`, { params: params(page) });
+    const response =
+      page === 1
+        ? first
+        : await hablla.get(`/v2/workspaces/${workspaceId}/cards`, { params: params(page) });
     const cards = resultsFrom(response, "cards");
     occurrences += cards.length;
+
     for (const card of cards) {
       const id = String(card.id || "");
       if (!id) throw new Error("Hablla retornou card sem id");
@@ -826,11 +877,30 @@ async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
       if (!current || updatedAt >= current.updatedAt) byId.set(id, { card, updatedAt });
     }
   }
+
   const totalItems = Number(first.data?.totalItems || 0);
   if (totalItems && occurrences < totalItems) {
     throw new Error(`API de cards informou ${totalItems} ocorrencias, mas retornou ${occurrences}`);
   }
-  return { byId, occurrences, outside, totalItems, totalPages };
+
+  return { byId, occurrences, outside, totalItems, totalPages, windows: 1 };
+}
+
+async function fetchCardListPass(hablla, workspaceId, listId, day, direction) {
+  const maxPages = positiveInteger(
+    process.env.LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY,
+    200,
+    "LOJA_PREFERENCIA_CARDS_MAX_PAGES_PER_LIST_DAY",
+  );
+  return fetchCardListWindow(
+    hablla,
+    workspaceId,
+    listId,
+    day,
+    direction,
+    cardFilterRange(day),
+    maxPages,
+  );
 }
 
 function sameIdSet(left, right) {
@@ -856,7 +926,7 @@ async function fetchCardsForDay(hablla, workspaceId, listIds, day) {
     }
     console.log(
       `[cards] ${day} lista ${index + 1}/${listIds.length}: ${desc.byId.size} IDs unicos ` +
-      `(totalItems=${desc.totalItems}, paginas=${desc.totalPages}, fora-da-janela=${desc.outside}).`,
+      `(ocorrencias=${desc.totalItems}, paginas=${desc.totalPages}, janelas=${desc.windows}, fora-da-janela=${desc.outside}).`,
     );
   }
   return [...all.values()].map(({ card }) => card);
@@ -1147,6 +1217,7 @@ module.exports._internals = {
   attendantToRow,
   cardToRow,
   cardFilterRange,
+  splitIsoRange,
   customFieldValue,
   daySequence,
   latestDay,
