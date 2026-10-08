@@ -44,6 +44,56 @@ test("Zoho Leads usa janela concluida, criterio inclusivo e datas explicitas pri
   );
 });
 
+test("Zoho Leads repete HTTP 200 malformado e aceita a resposta seguinte", async () => {
+  let calls = 0;
+  const waits = [];
+  const zoho = {
+    get: async () => {
+      calls += 1;
+      if (calls === 1) return { status: 200, data: {} };
+      return { status: 200, data: { code: 3000, data: [{ ID: "1" }] } };
+    },
+  };
+  const data = await leads.fetchZohoRecordsPage(
+    zoho,
+    "https://example.invalid",
+    { from: 1, limit: 200 },
+    {
+      maxAttempts: 3,
+      retryDelayMs: 1,
+      sleepFn: async (ms) => waits.push(ms),
+    },
+  );
+  assert.equal(calls, 2);
+  assert.deepEqual(waits, [1]);
+  assert.deepEqual(data, [{ ID: "1" }]);
+});
+
+test("Zoho Leads continua falhando se a resposta 200 permanecer invalida", async () => {
+  let calls = 0;
+  const zoho = {
+    get: async () => {
+      calls += 1;
+      return { status: 200, data: {} };
+    },
+  };
+  await assert.rejects(
+    () =>
+      leads.fetchZohoRecordsPage(
+        zoho,
+        "https://example.invalid",
+        { from: 1, limit: 200 },
+        {
+          maxAttempts: 3,
+          retryDelayMs: 1,
+          sleepFn: async () => {},
+        },
+      ),
+    (error) => error.code === "ZOHO_INVALID_RECORD_LIST",
+  );
+  assert.equal(calls, 3);
+});
+
 test("Zoho Leads deduplica por ID e protege janela existente contra retorno vazio", () => {
   const first = { ID: "1", marker: "antigo" };
   const only = { ID: "2", marker: "unico" };
